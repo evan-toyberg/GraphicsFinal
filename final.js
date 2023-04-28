@@ -49,10 +49,27 @@ window.addEventListener('load', function init() {
     // Initialize the WebGL program and data
     gl.program = initProgram();
     initBuffers();
-    initTextures();
     initEvents();
+    initTextures();
+    initMatrix();
+
 
     // Set initial values of uniforms
+
+    gl.uniform3fv(this.shader.lightAmbiant,[0.2, 0.2, 0.2]);
+    gl.uniform3fv(this.shader.lightDiffuse,[0.5, 0.5, 0.5]);
+    gl.uniform3fv(this.shader.lightSpecular,[1.0, 1.0, 1.0]);
+    gl.uniform3fv(this.shader.lightPosition, [20.0, 20.0, 20.0]);
+    gl.uniform3fv(this.shader.viewPos, camera.Position);
+
+    gl.uniformMatrix4fv(this.shader.matrixModel, false, this.model);
+    gl.uniformMatrix4fv(this.shader.matrixView, false, view);
+    gl.uniformMatrix4fv(this.shader.matrixProj, false, projection);
+    gl.uniformMatrix3fv(this.shader.matrixNormal, false, this.normal);
+
+    gl.uniform1f(this.shader.detalX, this.i);
+    gl.uniform1f(this.shader.time, this.time*0.001);
+    
     updateModelViewMatrix();
 
 
@@ -162,13 +179,29 @@ function initProgram() {
     
     // Get the attribute indices
     program.aPosition = gl.getAttribLocation(program, 'aPosition');
-    program.aNormal = gl.getAttribLocation(program, 'aNormal');
+    //program.aNormal = gl.getAttribLocation(program, "aNormal"); commented out in original program
     program.aTexCoord = gl.getAttribLocation(program, 'aTexCoord'); // TODO: any other attributes?
 
     // Get the uniform indices
     program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
     program.uTexture = gl.getUniformLocation(program, 'uTexture'); // TODO: any other uniforms?
+
+    // Uniforms from grid.js
+    program.matrixModel = gl.getUniformLocation(program, "model");
+    program.matrixView = gl.getUniformLocation(program, "view");
+    program.matrixProj = gl.getUniformLocation(program, "projection");
+    program.matrixNormal = gl.getUniformLocation(program, "normal");
+
+    program.lightAmbiant = gl.getUniformLocation(program, "light.ambient");
+    program.lightDiffuse = gl.getUniformLocation(program, "light.diffuse");
+    program.lightSpecular = gl.getUniformLocation(program, "light.specular");
+    program.lightPosition = gl.getUniformLocation(program, "light.position");
+    program.viewPos = gl.getUniformLocation(program, "viewPos");
+    program.normalTexture = gl.getUniformLocation(program, "normalSampler");
+    program.skyboxloc = gl.getUniformLocation(program , "skybox");
+    program.detalX = gl.getUniformLocation(program, "detalX");
+    program.time = gl.getUniformLocation(program, "time");
 
     return program;
 }
@@ -208,6 +241,22 @@ function initBuffers() {
         0, 3, 7, 3, 4, 7,
     ];
     obj = createObject(cube_coords, cube_tex_coords, cube_indices, false);
+
+    generateGrid(500)
+    
+    let vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertex), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    let texBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texture), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    let indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(this.index), gl.STATIC_DRAW);
 }
 
 
@@ -294,8 +343,24 @@ function loadTexture(img, idx) {
  * Initialize the texture buffers.
  */
 function initTextures() {
-    let img = createCheckerboardImage(128, 4);
-    obj.push(loadTexture(img));
+    // let img = createCheckerboardImage(128, 4);
+    // obj.push(loadTexture(img));
+
+    gl.normalTex = gl.createTexture();
+    gl.normalTex.image = new Image();
+    gl.normalTex.image.onload = function () {
+        gl.bindTexture(gl.TEXTURE_2D, gl.normalTex);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, gl.normalTex.image);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); //Prevents s-coordinate wrapping (repeating).
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); //Prevents t-coordinate wrapping (repeating).
+        gl.bindTexture(gl.TEXTURE_2D, null);
+    }.bind(); // "used to take this? replacement"
+    gl.normalTex.image.src = gl.normalTexPath;
+
 }
 
 
@@ -306,6 +371,12 @@ function initEvents() {
     window.addEventListener('resize', onWindowResize);
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+}
+
+function initMatrix() {
+    mat4.translate(this.model, this.model, [-1000.0, 0.0, -1000.0]);
+    mat4.scale(this.model,this.model,[5.0,0.0,5.0]);
+    mat3.normalFromMat4(this.normal, this.model);
 }
 
 
@@ -451,4 +522,35 @@ function onKeyDown(e) {
     } else if (e.key === 'd') {
         vec3.scaleAndAdd(this.Position ,this.Position,this.Right,velocity);
     }
+}
+
+
+function generateGrid(gridSize) {
+    let i = 0;
+    for(let x=0.0; x<gridSize; x+=1.0) {
+        for (let z = 0.0; z <gridSize; z += 1.0) {
+            this.vertex.push(x, 0.0, z);        //left upper
+            this.vertex.push(x+1.0, 0.0, z);
+            this.vertex.push(x+1.0, 0.0, z+1.0);
+            this.vertex.push(x, 0.0, z+1.0);
+
+            this.texture.push( 0.0, 0.0);
+            this.texture.push( 1.0, 0.0);
+            this.texture.push( 1.0, 1.0);
+            this.texture.push( 0.0, 1.0);
+
+            this.index.push(i);
+            this.index.push(i+1);
+            this.index.push(i+2);
+            this.index.push(i);
+            this.index.push(i+2);
+            this.index.push(i+3);
+            i +=4;
+        }
+    }
+}
+
+function animate() {
+    this.i < this.normalTex.image.height ? this.i += 1.0 : this.i = 0.0;
+    this.time++;
 }

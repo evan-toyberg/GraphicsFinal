@@ -426,14 +426,15 @@ function updateModelViewMatrix() {
 // }
 
 
+//Program has been working without it
 /**
  * Update the projection matrix.
  */
-function updateProjectionMatrix() {
-    let aspect = gl.canvas.width / gl.canvas.height;
-    let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 10);
-    gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
-}
+// function updateProjectionMatrix() {
+//     let aspect = gl.canvas.width / gl.canvas.height;
+//     let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 1000000);
+//     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
+// }
 
 
 
@@ -489,8 +490,6 @@ function tick() {
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
-    resizeCanvas();
-    handleKeys();
     animate();
     render();
 
@@ -508,7 +507,6 @@ function onWindowResize() {
     gl.canvas.width = window.innerWidth;
     gl.canvas.height = window.innerHeight;
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    updateProjectionMatrix();
 }
 
 function onKeyDown(e) {

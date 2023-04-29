@@ -1,29 +1,19 @@
-// A basic demo of using textures (solution)
+// A basic demo of using textures and loading images (solution)
 'use strict';
 
 // Allow use of glMatrix values directly instead of needing the glMatrix prefix
 const vec3 = glMatrix.vec3;
 const vec4 = glMatrix.vec4;
-const mat3 = glMatrix.mat3;
 const mat4 = glMatrix.mat4;
 const quat = glMatrix.quat;
 
 // Global WebGL context variable
-let canvas;
 let gl;
-let camera;
-let skybox;
-let grid;
-
-let deltaTime = 0;
-let lastFrame = 0;
 
 // View values
-let lastPosition = [0, 0]; // instead of lastX, lastY
+let position = [0, 0, -5];
 let rotation = [0, 0, 0];
 let scale = [1, 1, 1];
-
-const SPEED = 0.005
 
 // Objects to be drawn
 let obj;
@@ -42,40 +32,23 @@ window.addEventListener('load', function init() {
     // Configure WebGL
     gl.viewport(0, 0, canvas.width, canvas.height); // this is the region of the canvas we want to draw on (all of it)
     gl.clearColor(0, 0, 0, 0); // setup the background color with red, green, blue, and alpha
-    gl.enable(gl.DEPTH_TEST);
-
-    lastPosition = [canvas.width / 2, canvas.height / 2];
+    // gl.enable(gl.DEPTH_TEST);
+    // gl.enable(gl.CULL_FACE);
+    // gl.cullFace(gl.BACK);
 
     // Initialize the WebGL program and data
     gl.program = initProgram();
     initBuffers();
-    initEvents();
     initTextures();
-    initMatrix();
-
+    initEvents();
 
     // Set initial values of uniforms
-
-    gl.uniform3fv(this.shader.lightAmbiant,[0.2, 0.2, 0.2]);
-    gl.uniform3fv(this.shader.lightDiffuse,[0.5, 0.5, 0.5]);
-    gl.uniform3fv(this.shader.lightSpecular,[1.0, 1.0, 1.0]);
-    gl.uniform3fv(this.shader.lightPosition, [20.0, 20.0, 20.0]);
-    gl.uniform3fv(this.shader.viewPos, camera.Position);
-
-    gl.uniformMatrix4fv(this.shader.matrixModel, false, this.model);
-    gl.uniformMatrix4fv(this.shader.matrixView, false, view);
-    gl.uniformMatrix4fv(this.shader.matrixProj, false, projection);
-    gl.uniformMatrix3fv(this.shader.matrixNormal, false, this.normal);
-
-    gl.uniform1f(this.shader.detalX, this.i);
-    gl.uniform1f(this.shader.time, this.time*0.001);
-    
     updateModelViewMatrix();
-
+    gl.uniform1i(gl.program.uTexture, 0);
 
     // Render the static scene
     onWindowResize();
-    render();
+    //render(); // wait till images are loaded
 });
 
 
@@ -99,7 +72,7 @@ function initProgram() {
         // Attributes for the vertex (from VBOs)
         in vec4 aPosition;
         in vec3 aNormal;
-        in vec2 aTexCoord; // TODO: any other attributes?
+        in vec2 aTexCoord;
 
         // Vectors (varying variables to vertex shader)
         out vec3 vNormalVector;
@@ -107,7 +80,7 @@ function initProgram() {
         out vec3 vEyeVector;
 
         // TODO: Texture information
-		out vec2 vTexCoord;
+        out vec2 vTexCoord;
 
         void main() {
             vec4 P = uModelViewMatrix * aPosition;
@@ -128,7 +101,7 @@ function initProgram() {
 
         // Light and material properties
         const vec3 lightColor = vec3(1, 1, 1);
-        const vec4 materialColor = vec4(0, 1, 1, 1);
+        const vec4 materialColor = vec4(0, 1, 0, 1);
         const float materialAmbient = 0.2;
         const float materialDiffuse = 0.5;
         const float materialSpecular = 0.3;
@@ -140,8 +113,8 @@ function initProgram() {
         in vec3 vEyeVector;
 
         // TODO: Texture information
-		uniform sampler2D uTexture;
-		in vec2 vTexCoord;
+        uniform sampler2D uTexture;
+        in vec2 vTexCoord;  // varying for texture coords
 
         // Output color
         out vec4 fragColor;
@@ -163,7 +136,7 @@ function initProgram() {
             }
             
             // TODO: Object color combined from texture and material
-			vec4 color = texture(uTexture, vTexCoord) * materialColor;
+			vec4 color = texture(uTexture, vTexCoord);
 
             // Compute final color
             fragColor.rgb = lightColor * (
@@ -179,29 +152,13 @@ function initProgram() {
     
     // Get the attribute indices
     program.aPosition = gl.getAttribLocation(program, 'aPosition');
-    //program.aNormal = gl.getAttribLocation(program, "aNormal"); commented out in original program
-    program.aTexCoord = gl.getAttribLocation(program, 'aTexCoord'); // TODO: any other attributes?
+    program.aNormal = gl.getAttribLocation(program, 'aNormal');
+    program.aTexCoord = gl.getAttribLocation(program, 'aTexCoord');
 
     // Get the uniform indices
     program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
-    program.uTexture = gl.getUniformLocation(program, 'uTexture'); // TODO: any other uniforms?
-
-    // Uniforms from grid.js
-    program.matrixModel = gl.getUniformLocation(program, "model");
-    program.matrixView = gl.getUniformLocation(program, "view");
-    program.matrixProj = gl.getUniformLocation(program, "projection");
-    program.matrixNormal = gl.getUniformLocation(program, "normal");
-
-    program.lightAmbiant = gl.getUniformLocation(program, "light.ambient");
-    program.lightDiffuse = gl.getUniformLocation(program, "light.diffuse");
-    program.lightSpecular = gl.getUniformLocation(program, "light.specular");
-    program.lightPosition = gl.getUniformLocation(program, "light.position");
-    program.viewPos = gl.getUniformLocation(program, "viewPos");
-    program.normalTexture = gl.getUniformLocation(program, "normalSampler");
-    program.skyboxloc = gl.getUniformLocation(program , "skybox");
-    program.detalX = gl.getUniformLocation(program, "detalX");
-    program.time = gl.getUniformLocation(program, "time");
+    program.uTexture = gl.getUniformLocation(program, 'uTexture');
 
     return program;
 }
@@ -217,46 +174,30 @@ function initBuffers() {
         -1, 1, 1,   // B
         -1, -1, 1,  // C
         1, -1, 1,   // D
-        1, -1, -1,  // E
-        -1, -1, -1, // F
-        -1, 1, -1,  // G
-        1, 1, -1,   // H
+        // 1, -1, -1,  // E
+        // -1, -1, -1, // F
+        // -1, 1, -1,  // G
+        // 1, 1, -1,   // H
     ];
     let cube_tex_coords = [
-        0, 0, // A
-        1, 0, // B
-        1, 1, // C
-        0, 1, // D
-        0, 0, // E
-        1, 0, // F
-        1, 1, // G
-        0, 1, // H
+        1, 1, // A
+        0, 1, // B
+        0, 0, // C
+        1, 0, // D
+        // 1, 1, // E
+        // 0, 1, // F
+        // 0, 0, // G
+        // 1, 0, // H
     ];
     let cube_indices = [
         1, 2, 0, 2, 3, 0,
-        7, 6, 1, 0, 7, 1,
-        1, 6, 2, 6, 5, 2,
-        3, 2, 4, 2, 5, 4,
-        6, 7, 5, 7, 4, 5,
-        0, 3, 7, 3, 4, 7,
+        // 7, 6, 1, 0, 7, 1,
+        // 1, 6, 2, 6, 5, 2,
+        // 3, 2, 4, 2, 5, 4,
+        // 6, 7, 5, 7, 4, 5,
+        // 0, 3, 7, 3, 4, 7,
     ];
     obj = createObject(cube_coords, cube_tex_coords, cube_indices, false);
-
-    generateGrid(500)
-    
-    let vertexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertex), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-    let texBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, texBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texture), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-    let indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(this.index), gl.STATIC_DRAW);
 }
 
 
@@ -286,7 +227,7 @@ function createObject(coords, tex_coords, indices, is_tri_strip) {
     gl.vertexAttribPointer(gl.program.aNormal, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(gl.program.aNormal);
     
-    // TODO: Load the texture coordinate data into the GPU and associate with shader
+    // Load the texture coordinate data into the GPU and associate with shader
     buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, tex_coords, gl.STATIC_DRAW);
@@ -309,32 +250,24 @@ function createObject(coords, tex_coords, indices, is_tri_strip) {
 
 
 /**
- * Load a texture onto the GPU. The image must be power-of-two sized image using RGBA with uint8
- * values. The image will be flipped vertically and will support mipmapping.
+ * Load a texture onto the GPU.
  */
-function loadTexture(img, idx) {
+function loadTexture(img) {
     // TODO
-    // If second argument not provided, default to 0
-    if (typeof idx === "undefined") { idx = 0; }
+    let texture = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
-    let texture = gl.createTexture(); // create a texture resource on the GPU
-    gl.activeTexture(gl['TEXTURE'+idx]); // set the current texture that all following commands will apply to
-    gl.bindTexture(gl.TEXTURE_2D, texture); // assign our texture resource as the current texture
-    //gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); // tell WebGL to flip the image vertically (almost always want this to be true)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-    // Load the image data into the texture
+
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 
-    // Setup options for downsampling and upsampling the image data
-    //gl.generateMipmap(gl.TEXTURE_2D);
-    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-    //gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.bindTexture(gl.TEXTURE_2D, null)
 
-    // Cleanup and return
-    gl.bindTexture(gl.TEXTURE_2D, null);
     return texture;
 }
 
@@ -343,24 +276,12 @@ function loadTexture(img, idx) {
  * Initialize the texture buffers.
  */
 function initTextures() {
-    // let img = createCheckerboardImage(128, 4);
-    // obj.push(loadTexture(img));
-
-    gl.normalTex = gl.createTexture();
-    gl.normalTex.image = new Image();
-    gl.normalTex.image.onload = function () {
-        gl.bindTexture(gl.TEXTURE_2D, gl.normalTex);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, gl.normalTex.image);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); //Prevents s-coordinate wrapping (repeating).
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); //Prevents t-coordinate wrapping (repeating).
-        gl.bindTexture(gl.TEXTURE_2D, null);
-    }.bind(); // "used to take this? replacement"
-    gl.normalTex.image.src = gl.normalTexPath;
-
+    let image = new Image();
+    image.src = 'waternormal.jpg';
+    image.addEventListener('load', () => {
+        obj.push(loadTexture(image));
+        render();
+    });
 }
 
 
@@ -369,14 +290,8 @@ function initTextures() {
  */
 function initEvents() {
     window.addEventListener('resize', onWindowResize);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-}
-
-function initMatrix() {
-    mat4.translate(this.model, this.model, [-1000.0, 0.0, -1000.0]);
-    mat4.scale(this.model,this.model,[5.0,0.0,5.0]);
-    mat3.normalFromMat4(this.normal, this.model);
+    gl.canvas.addEventListener('mousedown', onMouseDown);
+    gl.canvas.addEventListener('wheel', onMouseWheel);
 }
 
 
@@ -390,53 +305,62 @@ function updateModelViewMatrix() {
 }
 
 
-// /**
-//  * Handle the click-and-drag to rotate the cube.
-//  */
-// function onMouseDown(e) {
-//     e.preventDefault();
+/**
+ * Handle the click-and-drag to rotate the cube.
+ */
+function onMouseDown(e) {
+    e.preventDefault();
 
-//     let [startX, startY] = [e.offsetX, e.offsetY];
-//     let start_rotation = rotation.slice();
-//     function onMouseMove(e2) {
-//         let x_rotation = (e2.offsetX - startX) / (this.width - 1) * 360;
-//         let y_rotation = (e2.offsetY - startY) / (this.height - 1) * 360;
-//         rotation[0] = start_rotation[0] + y_rotation;
-//         rotation[1] = start_rotation[1] + x_rotation;
-//         updateModelViewMatrix();
-//     }
-//     function onMouseUp() {
-//         this.removeEventListener('mousemove', onMouseMove);
-//         this.removeEventListener('mouseup', onMouseUp);
-//     }
-//     if (e.button === 0) {
-//         this.addEventListener('mousemove', onMouseMove);
-//         this.addEventListener('mouseup', onMouseUp);
-//     }
-// }
-
-
-// /**
-//  * "Zoom" when using the mouse wheel.
-//  */
-// function onMouseWheel(e) {
-//     let s = scale[0] * Math.pow(1.05, e.deltaY);
-//     scale = [s, s, s];
-//     updateModelViewMatrix();
-// }
+    let [startX, startY] = [e.offsetX, e.offsetY];
+    let start_rotation = rotation.slice();
+    function onMouseMove(e2) {
+        let x_rotation = (e2.offsetX - startX) / (this.width - 1) * 360;
+        let y_rotation = (e2.offsetY - startY) / (this.height - 1) * 360;
+        rotation[0] = start_rotation[0] + y_rotation;
+        rotation[1] = start_rotation[1] + x_rotation;
+        updateModelViewMatrix();
+    }
+    function onMouseUp() {
+        this.removeEventListener('mousemove', onMouseMove);
+        this.removeEventListener('mouseup', onMouseUp);
+    }
+    if (e.button === 0) {
+        this.addEventListener('mousemove', onMouseMove);
+        this.addEventListener('mouseup', onMouseUp);
+    }
+}
 
 
-//Program has been working without it
+/**
+ * "Zoom" when using the mouse wheel.
+ */
+function onMouseWheel(e) {
+    e.preventDefault();
+    let s = scale[0] * Math.pow(1.005, e.deltaY);
+    scale = [s, s, s];
+    updateModelViewMatrix();
+}
+
+
 /**
  * Update the projection matrix.
  */
-// function updateProjectionMatrix() {
-//     let aspect = gl.canvas.width / gl.canvas.height;
-//     let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 1000000);
-//     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
-// }
+function updateProjectionMatrix() {
+    let aspect = gl.canvas.width / gl.canvas.height;
+    let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 10);
+    gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
+}
 
 
+/**
+ * Keep the canvas sized to the window.
+ */
+function onWindowResize() {
+    gl.canvas.width = window.innerWidth;
+    gl.canvas.height = window.innerHeight;
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    updateProjectionMatrix();
+}
 
 
 /**
@@ -447,108 +371,13 @@ function render() {
 
     let [vao, count, mode, texture] = obj;
     gl.bindVertexArray(vao);
-    // TODO: bind the texture
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.drawElements(mode, count, gl.UNSIGNED_SHORT, 0);
 
-    // TODO: Cleanup
+    // Cleanup
     gl.bindVertexArray(null);
     gl.bindTexture(gl.TEXTURE_2D, null);
 
     // Render again
     window.requestAnimationFrame(render);
-}
-
-
-/**
- * Create a checkerboard image of white and black squares. The image will be size-by-size pixels.
- * There will be a total of num_checks boxes in each direction for a total of num_checks^2.
- */
-// function createCheckerboardImage(size, num_checks) {
-//     let img = new ImageData(size, size);
-//     let data = img.data;
-//     let checkSize = size/num_checks;
-//     for (let i = 0; i < size; i++) {
-//         for (let j = 0; j < size; j++) {
-//             let off = 4*(i*size+j);
-//             let checkX = Math.floor(i/checkSize)%2;
-//             let checkY = Math.floor(j/checkSize)%2;
-//             let c = (checkX !== checkY) ? 255 : 0;
-//             data[off] = data[off+1] = data[off+2] = c;
-//             data[off+3] = 255;
-//         }
-//     }
-//     return img;
-// }
-
-function tick() {
-    requestAnimationFrame(tick);
-    // stats.begin();
-
-    let d = new Date();
-    let currentFrame = d.getTime();
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
-
-    animate();
-    render();
-
-    // stats.end();
-}
-
-function deg2rad(degrees) {
-    return degrees * Math.PI / 180;
-}
-
-/**
- * Keep the canvas sized to the window.
- */
-function onWindowResize() {
-    gl.canvas.width = window.innerWidth;
-    gl.canvas.height = window.innerHeight;
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-}
-
-function onKeyDown(e) {
-    let velocity = this.MovementSpeed * deltaTime;
-    if (e.key === 'w') {
-        vec3.scaleAndAdd(this.Position ,this.Position,this.Front,velocity );
-    } else if (e.key === 's') {
-        vec3.scaleAndAdd(this.Position ,this.Position,this.Front,-velocity);
-    } else if (e.key === 'a') {
-        vec3.scaleAndAdd(this.Position ,this.Position,this.Right,-velocity);
-    } else if (e.key === 'd') {
-        vec3.scaleAndAdd(this.Position ,this.Position,this.Right,velocity);
-    }
-}
-
-
-function generateGrid(gridSize) {
-    let i = 0;
-    for(let x=0.0; x<gridSize; x+=1.0) {
-        for (let z = 0.0; z <gridSize; z += 1.0) {
-            this.vertex.push(x, 0.0, z);        //left upper
-            this.vertex.push(x+1.0, 0.0, z);
-            this.vertex.push(x+1.0, 0.0, z+1.0);
-            this.vertex.push(x, 0.0, z+1.0);
-
-            this.texture.push( 0.0, 0.0);
-            this.texture.push( 1.0, 0.0);
-            this.texture.push( 1.0, 1.0);
-            this.texture.push( 0.0, 1.0);
-
-            this.index.push(i);
-            this.index.push(i+1);
-            this.index.push(i+2);
-            this.index.push(i);
-            this.index.push(i+2);
-            this.index.push(i+3);
-            i +=4;
-        }
-    }
-}
-
-function animate() {
-    this.i < this.normalTex.image.height ? this.i += 1.0 : this.i = 0.0;
-    this.time++;
 }

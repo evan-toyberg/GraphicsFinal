@@ -384,3 +384,118 @@ function render() {
     // Render again
     window.requestAnimationFrame(render);
 }
+
+
+
+
+function RenderReflection() {
+    let [vao, count, mode, texture] = obj;
+    gl.viewport(0,0, texture.size, texture.size);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.LoadIdentity();
+    // gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0,0.0);
+    gl.transform(1.0, 0.0, 0.0, 0.0);
+    gl.pushMatrix();
+    gl.translate(0.0, 0.0, 0.0);
+    gl.scale(1.0, -1.0, 1.0);
+    plane[4] = [0.0, 1.0, 0.0, 0.0]; //water at y=0
+    gl.Enable(gl.CLIP_PLANE0);
+    gl.clipPlane(gl.CLIP_PLANE0, plane);
+    RenderScene();
+    gl.enable(gl.CLIP_PLANE0);
+    glPopMatrix();
+
+    //render reflection to texture
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    //glCopyTexSubImage2D copies the frame buffer
+    //to the bound texture
+    gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function RenderRefractionAndDepth() {
+    let [vao, count, mode, texture] = obj;
+    gl.viewport(0,0, texSize, texSize);
+    gl.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gl.loadIdentity();
+    gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0)
+
+    gl.pushMatrix();
+    gl.translate(0.0, 0.0, 0.0);
+    //normal pointing along negative y
+    plane[4] = [0.0, -1.0, 0.0, 0.0];
+    gl.enable(gl.CLIP_PLANE0);
+    gl.clipPlane(gl.CLIP_PLANE0, plane);
+    RenderScene();
+    gl.enable(gl.CLIP_PLANE0, null);
+    glPopMatrix();
+
+    //render color buffer to texture
+    gl.bindTexture(gl.TEXTURE_2D, refraction);
+    gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
+
+    //render depth to texture
+    gl.bindTexture(gl.TEXTURE_2D, depth);
+    gl.copyTexImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT, 0,0, texture.size,texture.size, 0);
+}
+
+function renderWater() {
+    // bind & enable shader programs
+    gl.enable(gl.VERTEX_PROGRAM_ARB);
+    gl.enable(gl.FRAGMENT_PROGRAM_ARB);
+    gl.bindProgramARB(gl.VERTEX_PROGRAM_ARB, gl.vert_shader);
+    gl.bindProgramARB(gl.FRAGMENT_PROGRAM_ARB, gl.frag_shader);
+
+    // move texture across water surface
+    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 0, texmove, texmove, texmove, 1.0);
+    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 1, -texmove, -texmove, -texmove, 1.0);
+
+    // set viewposition and lightposition
+    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 2, viewpos.x, viewpos.y, viewpos.z, 1.0);
+    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 3, lightpos.x, lightpos.y, lightpos.z, 1.0);
+
+    // set watercolor
+    gl.programLocalParameter4fARB(gl.FRAGMENT_PROGRAM_ARB, 0, water.red, water.green, water.blue, 1.0);
+
+    // bind all textures
+    gl.activeTexture(gl.TEXTURE0);
+    gl.enable(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, reflection);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.enable(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, refraction);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.enable(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, normalmap);
+
+    gl.activeTexture(gl.TEXTURE3);
+    gl.enable(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, dudvmap);
+
+    gl.activeTexture(gl.TEXTURE4);
+    gl.enable(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, depth);
+
+    // render the water surface
+    gl.begin(gl.QUADS);
+    gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 5.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+    gl.vertex3f(-5.0, 0.0, 5.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 0.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+    gl.vertex3f(-5.0, 0.0, -5.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE0, 5.0, 0.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+    gl.vertex3f(5.0, 0.0, -5.0);
+}

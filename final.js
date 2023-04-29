@@ -11,12 +11,17 @@ const quat = glMatrix.quat;
 let gl;
 
 // View values
-let position = [0, 0, -5];
+let position = [-5, -1, -12];
 let rotation = [0, 0, 0];
 let scale = [1, 1, 1];
 
 // Objects to be drawn
 let obj;
+
+let gl_vertex = [];
+let gl_texture = [];
+let gl_index = [];
+
 
 
 // Once the document is fully loaded run this init function.
@@ -169,35 +174,9 @@ function initProgram() {
  */
 function initBuffers() {
     // The vertices, colors, and indices for a cube
-    let cube_coords = [
-        1, 1, 1,    // A
-        -1, 1, 1,   // B
-        -1, -1, 1,  // C
-        1, -1, 1,   // D
-        // 1, -1, -1,  // E
-        // -1, -1, -1, // F
-        // -1, 1, -1,  // G
-        // 1, 1, -1,   // H
-    ];
-    let cube_tex_coords = [
-        1, 1, // A
-        0, 1, // B
-        0, 0, // C
-        1, 0, // D
-        // 1, 1, // E
-        // 0, 1, // F
-        // 0, 0, // G
-        // 1, 0, // H
-    ];
-    let cube_indices = [
-        1, 2, 0, 2, 3, 0,
-        // 7, 6, 1, 0, 7, 1,
-        // 1, 6, 2, 6, 5, 2,
-        // 3, 2, 4, 2, 5, 4,
-        // 6, 7, 5, 7, 4, 5,
-        // 0, 3, 7, 3, 4, 7,
-    ];
-    obj = createObject(cube_coords, cube_tex_coords, cube_indices, false);
+    generateGrid(10)
+    
+    obj = createObject(gl_vertex, gl_texture, gl_index, false);
 }
 
 
@@ -260,7 +239,6 @@ function loadTexture(img) {
 
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
-
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
 
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -290,7 +268,7 @@ function initTextures() {
  */
 function initEvents() {
     window.addEventListener('resize', onWindowResize);
-    gl.canvas.addEventListener('mousedown', onMouseDown);
+    // gl.canvas.addEventListener('mousedown', onMouseDown);
     gl.canvas.addEventListener('wheel', onMouseWheel);
 }
 
@@ -304,6 +282,31 @@ function updateModelViewMatrix() {
     gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
 }
 
+function generateGrid(gridSize) {
+
+    let i = 0;
+    for(let x=0.0; x<gridSize; x+=1.0) {
+        for (let z = 0.0; z <gridSize; z += 1.0) {
+            gl_vertex.push(x, 0.0, z);        //left upper
+            gl_vertex.push(x+1.0, 0.0, z);
+            gl_vertex.push(x+1.0, 0.0, z+1.0);
+            gl_vertex.push(x, 0.0, z+1.0);
+
+            gl_texture.push( 0.0, 0.0);
+            gl_texture.push( 1.0, 0.0);
+            gl_texture.push( 1.0, 1.0);
+            gl_texture.push( 0.0, 1.0);
+
+            gl_index.push(i);
+            gl_index.push(i+1);
+            gl_index.push(i+2);
+            gl_index.push(i);
+            gl_index.push(i+2);
+            gl_index.push(i+3);
+            i +=4;
+        }
+    }
+}
 
 /**
  * Handle the click-and-drag to rotate the cube.
@@ -347,7 +350,7 @@ function onMouseWheel(e) {
  */
 function updateProjectionMatrix() {
     let aspect = gl.canvas.width / gl.canvas.height;
-    let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 10);
+    let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 1000);
     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
 }
 

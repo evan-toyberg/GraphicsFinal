@@ -50,6 +50,7 @@ window.addEventListener('load', function init() {
     // Set initial values of uniforms
     updateModelViewMatrix();
     gl.uniform1i(gl.program.uTexture, 0);
+    gl.uniform1i(gl.program.uDudvMap, 0);
 
     // Render the static scene
     onWindowResize();
@@ -78,6 +79,7 @@ function initProgram() {
         in vec4 aPosition;
         in vec3 aNormal;
         in vec2 aTexCoord;
+        in vec2 aDudvCoord;
 
         // Vectors (varying variables to vertex shader)
         out vec3 vNormalVector;
@@ -86,6 +88,7 @@ function initProgram() {
 
         // TODO: Texture information
         out vec2 vTexCoord;
+        out vec2 vDudvCoord;
 
         void main() {
             vec4 P = uModelViewMatrix * aPosition;
@@ -97,6 +100,7 @@ function initProgram() {
             gl_Position = uProjectionMatrix * P;
 
             vTexCoord = aTexCoord;
+            vDudvCoord = aDudvCoord;
         }`
     );
     // Fragment Shader - Phong Shading and Reflections
@@ -120,6 +124,8 @@ function initProgram() {
         // TODO: Texture information
         uniform sampler2D uTexture;
         in vec2 vTexCoord;  // varying for texture coords
+        uniform sampler2D uDudvMap;
+        in vec2 vDudvCoord;
 
         // Output color
         out vec4 fragColor;
@@ -140,14 +146,17 @@ function initProgram() {
                 specular = pow(max(dot(R, E), 0.0), materialShininess);
             }
             
+            vec2 distortion = texture(uDudvMap, vDudvCoord).rg * 0.1;
+
             // TODO: Object color combined from texture and material
 			vec4 color = texture(uTexture, vTexCoord);
+            color.r *= distortion.x;
 
             // Compute final color
             fragColor.rgb = lightColor * (
                 (materialAmbient + materialDiffuse * diffuse) * color.rgb +
                 materialSpecular * specular);
-            fragColor.a = 1.0;
+            fragColor.a = .8;
         }`
     );
 
@@ -164,6 +173,7 @@ function initProgram() {
     program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
     program.uTexture = gl.getUniformLocation(program, 'uTexture');
+    program.uDudvMap = gl.getUniformLocation(program, 'uDudvMap');
 
     return program;
 }
@@ -256,8 +266,11 @@ function loadTexture(img) {
 function initTextures() {
     let image = new Image();
     image.src = 'waternormal.jpg';
+    let dudv = new Image();
+    dudv.src = 'waterdudvmap.jpg';
     image.addEventListener('load', () => {
         obj.push(loadTexture(image));
+        obj.push(loadTexture(dudv));
         render();
     });
 }
@@ -277,8 +290,8 @@ function initEvents() {
  * Update the model view matrix.
  */
 function updateModelViewMatrix() {
-    let mv = glMatrix.mat4.fromRotationTranslationScale(glMatrix.mat4.create(),
-        glMatrix.quat.fromEuler(glMatrix.quat.create(), ...rotation), position, scale);
+    let mv = mat4.fromRotationTranslationScale(mat4.create(),
+        quat.fromEuler(glMatrix.quat.create(), ...rotation), position, scale);
     gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
 }
 
@@ -388,114 +401,113 @@ function render() {
 
 
 
-function RenderReflection() {
-    let [vao, count, mode, texture] = obj;
-    gl.viewport(0,0, texture.size, texture.size);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.LoadIdentity();
-    // gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0,0.0);
-    gl.transform(1.0, 0.0, 0.0, 0.0);
-    gl.pushMatrix();
-    gl.translate(0.0, 0.0, 0.0);
-    gl.scale(1.0, -1.0, 1.0);
-    plane[4] = [0.0, 1.0, 0.0, 0.0]; //water at y=0
-    gl.Enable(gl.CLIP_PLANE0);
-    gl.clipPlane(gl.CLIP_PLANE0, plane);
-    RenderScene();
-    gl.enable(gl.CLIP_PLANE0);
-    glPopMatrix();
+// function RenderReflection() {
+//     let [vao, count, mode, texture] = obj;
+//     gl.viewport(0,0, texture.size, texture.size);
+//     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+//     mat4.lookAt(mat4.create(), gl.eye, gl.center, gl.up);
 
-    //render reflection to texture
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    //glCopyTexSubImage2D copies the frame buffer
-    //to the bound texture
-    gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
-    gl.bindTexture(gl.TEXTURE_2D, null);
-}
+//     gl.pushMatrix(); // projection?
+//     gl.translate(0.0, 0.0, 0.0); // translate
+//     gl.scale(1.0, -1.0, 1.0); 
+//     plane[4] = [0.0, 1.0, 0.0, 0.0]; //water at y=0
+//     gl.Enable(gl.CLIP_PLANE0);
+//     gl.clipPlane(gl.CLIP_PLANE0, plane);
+//     RenderScene();
+//     gl.enable(gl.CLIP_PLANE0);
+//     glPopMatrix();
 
-function RenderRefractionAndDepth() {
-    let [vao, count, mode, texture] = obj;
-    gl.viewport(0,0, texSize, texSize);
-    gl.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    gl.loadIdentity();
-    gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0)
+//     //render reflection to texture
+//     gl.bindTexture(gl.TEXTURE_2D, texture);
+//     //glCopyTexSubImage2D copies the frame buffer
+//     //to the bound texture
+//     gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
+//     gl.bindTexture(gl.TEXTURE_2D, null);
+// }
 
-    gl.pushMatrix();
-    gl.translate(0.0, 0.0, 0.0);
-    //normal pointing along negative y
-    plane[4] = [0.0, -1.0, 0.0, 0.0];
-    gl.enable(gl.CLIP_PLANE0);
-    gl.clipPlane(gl.CLIP_PLANE0, plane);
-    RenderScene();
-    gl.enable(gl.CLIP_PLANE0, null);
-    glPopMatrix();
+// function RenderRefractionAndDepth() {
+//     let [vao, count, mode, texture] = obj;
+//     gl.viewport(0,0, texSize, texSize);
+//     gl.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//     gl.loadIdentity();
+//     gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0)
 
-    //render color buffer to texture
-    gl.bindTexture(gl.TEXTURE_2D, refraction);
-    gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
+//     gl.pushMatrix();
+//     gl.translate(0.0, 0.0, 0.0);
+//     //normal pointing along negative y
+//     plane[4] = [0.0, -1.0, 0.0, 0.0];
+//     gl.enable(gl.CLIP_PLANE0);
+//     gl.clipPlane(gl.CLIP_PLANE0, plane);
+//     RenderScene();
+//     gl.enable(gl.CLIP_PLANE0, null);
+//     glPopMatrix();
 
-    //render depth to texture
-    gl.bindTexture(gl.TEXTURE_2D, depth);
-    gl.copyTexImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT, 0,0, texture.size,texture.size, 0);
-}
+//     //render color buffer to texture
+//     gl.bindTexture(gl.TEXTURE_2D, refraction);
+//     gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
 
-function renderWater() {
-    // bind & enable shader programs
-    gl.enable(gl.VERTEX_PROGRAM_ARB);
-    gl.enable(gl.FRAGMENT_PROGRAM_ARB);
-    gl.bindProgramARB(gl.VERTEX_PROGRAM_ARB, gl.vert_shader);
-    gl.bindProgramARB(gl.FRAGMENT_PROGRAM_ARB, gl.frag_shader);
+//     //render depth to texture
+//     gl.bindTexture(gl.TEXTURE_2D, depth);
+//     gl.copyTexImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT, 0,0, texture.size,texture.size, 0);
+// }
 
-    // move texture across water surface
-    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 0, texmove, texmove, texmove, 1.0);
-    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 1, -texmove, -texmove, -texmove, 1.0);
+// function renderWater() {
+//     // bind & enable shader programs
+//     gl.enable(gl.VERTEX_PROGRAM_ARB);
+//     gl.enable(gl.FRAGMENT_PROGRAM_ARB);
+//     gl.bindProgramARB(gl.VERTEX_PROGRAM_ARB, gl.vert_shader);
+//     gl.bindProgramARB(gl.FRAGMENT_PROGRAM_ARB, gl.frag_shader);
 
-    // set viewposition and lightposition
-    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 2, viewpos.x, viewpos.y, viewpos.z, 1.0);
-    gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 3, lightpos.x, lightpos.y, lightpos.z, 1.0);
+//     // move texture across water surface
+//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 0, texmove, texmove, texmove, 1.0);
+//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 1, -texmove, -texmove, -texmove, 1.0);
 
-    // set watercolor
-    gl.programLocalParameter4fARB(gl.FRAGMENT_PROGRAM_ARB, 0, water.red, water.green, water.blue, 1.0);
+//     // set viewposition and lightposition
+//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 2, viewpos.x, viewpos.y, viewpos.z, 1.0);
+//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 3, lightpos.x, lightpos.y, lightpos.z, 1.0);
 
-    // bind all textures
-    gl.activeTexture(gl.TEXTURE0);
-    gl.enable(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, reflection);
+//     // set watercolor
+//     gl.programLocalParameter4fARB(gl.FRAGMENT_PROGRAM_ARB, 0, water.red, water.green, water.blue, 1.0);
 
-    gl.activeTexture(gl.TEXTURE1);
-    gl.enable(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, refraction);
+//     // bind all textures
+//     gl.activeTexture(gl.TEXTURE0);
+//     gl.enable(gl.TEXTURE_2D);
+//     gl.bindTexture(gl.TEXTURE_2D, reflection);
 
-    gl.activeTexture(gl.TEXTURE2);
-    gl.enable(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, normalmap);
+//     gl.activeTexture(gl.TEXTURE1);
+//     gl.enable(gl.TEXTURE_2D);
+//     gl.bindTexture(gl.TEXTURE_2D, refraction);
 
-    gl.activeTexture(gl.TEXTURE3);
-    gl.enable(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, dudvmap);
+//     gl.activeTexture(gl.TEXTURE2);
+//     gl.enable(gl.TEXTURE_2D);
+//     gl.bindTexture(gl.TEXTURE_2D, normalmap);
 
-    gl.activeTexture(gl.TEXTURE4);
-    gl.enable(gl.TEXTURE_2D);
-    gl.bindTexture(gl.TEXTURE_2D, depth);
+//     gl.activeTexture(gl.TEXTURE3);
+//     gl.enable(gl.TEXTURE_2D);
+//     gl.bindTexture(gl.TEXTURE_2D, dudvmap);
 
-    // render the water surface
-    gl.begin(gl.QUADS);
-    gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 5.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-    gl.vertex3f(-5.0, 0.0, 5.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 0.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-    gl.vertex3f(-5.0, 0.0, -5.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE0, 5.0, 0.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-    gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-    gl.vertex3f(5.0, 0.0, -5.0);
-}
+//     gl.activeTexture(gl.TEXTURE4);
+//     gl.enable(gl.TEXTURE_2D);
+//     gl.bindTexture(gl.TEXTURE_2D, depth);
+
+//     // render the water surface
+//     gl.begin(gl.QUADS);
+//     gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 5.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+//     gl.vertex3f(-5.0, 0.0, 5.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 0.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+//     gl.vertex3f(-5.0, 0.0, -5.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE0, 5.0, 0.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
+//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
+//     gl.vertex3f(5.0, 0.0, -5.0);
+// }

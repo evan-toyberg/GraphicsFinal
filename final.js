@@ -10,8 +10,18 @@ const quat = glMatrix.quat;
 // Global WebGL context variable
 let gl;
 
+// Matrices used during rendering
+const modelViewMatrix = mat4.create();
+const rotationMatrix = mat4.create();
+
+// Key values that are used for movement
+let movementKeyList = ["ArrowUp", "ArrowDown", "w", "s"];
+
+// Position values
+let movementZ = 0.0; // Varies based on whether or not the camera is moving forward or backwards
+
 // View values
-let position = [-5, -1, -12];
+let position = [-5, -1, -12, 0];
 let rotation = [0, 0, 0];
 let scale = [1, 1, 1];
 
@@ -71,6 +81,7 @@ function initProgram() {
         // Matrices
         uniform mat4 uModelViewMatrix;
         uniform mat4 uProjectionMatrix;
+        uniform mat4 uRotationMatrix;
 
         // Light Position
         const vec4 light = vec4(0, 0, 5, 1);
@@ -172,6 +183,7 @@ function initProgram() {
     // Get the uniform indices
     program.uModelViewMatrix = gl.getUniformLocation(program, 'uModelViewMatrix');
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
+    program.uRotationMatrix = gl.getUniformLocation(program, 'uRotationMatrix');
     program.uTexture = gl.getUniformLocation(program, 'uTexture');
     program.uDudvMap = gl.getUniformLocation(program, 'uDudvMap');
 
@@ -283,6 +295,7 @@ function initEvents() {
     window.addEventListener('resize', onWindowResize);
     // gl.canvas.addEventListener('mousedown', onMouseDown);
     gl.canvas.addEventListener('wheel', onMouseWheel);
+    window.addEventListener('keydown', buttonHandler); 
 }
 
 
@@ -290,9 +303,10 @@ function initEvents() {
  * Update the model view matrix.
  */
 function updateModelViewMatrix() {
-    let mv = mat4.fromRotationTranslationScale(mat4.create(),
-        quat.fromEuler(glMatrix.quat.create(), ...rotation), position, scale);
-    gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, mv);
+    // let mv = mat4.fromRotationTranslationScale(mat4.create(),
+    //     quat.fromEuler(glMatrix.quat.create(), ...rotation), position, scale);
+    vec4.transformMat4(position, position, modelViewMatrix);
+    gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, modelViewMatrix);
 }
 
 function generateGrid(gridSize) {
@@ -365,6 +379,59 @@ function updateProjectionMatrix() {
     let aspect = gl.canvas.width / gl.canvas.height;
     let p = mat4.perspective(mat4.create(), Math.PI / 4, aspect, 0.1, 1000);
     gl.uniformMatrix4fv(gl.program.uProjectionMatrix, false, p);
+}
+
+/**
+ * Updates the rotation matrix. Called whenever a button is pressed that will modify the position or angle of the camera.
+ */
+function updateRotationMatrix() {
+    gl.uniformMatrix4fv(gl.program.uRotationMatrix, false, rotationMatrix);
+}
+
+/**
+ * Converts degrees to radians.
+ */
+function deg2rad(degrees) {
+    return degrees * Math.PI / 180;
+}
+
+/**
+ * Update movement each time arrow up or arrow down is pressed.
+ */
+function updateMovement() {
+    vec4.transformMat4(position, [position[0], position[1], position[2] + movementZ, position[3]], modelViewMatrix);
+    mat4.translate(modelViewMatrix, rotationMatrix, position);
+}
+
+/**
+ * Updates the pitch of the camera for each press of 'w' or 's'.
+ */
+function updatePitch() {
+    rotation = deg2rad(90);
+    mat4.rotateX(rotationMatrix, rotationMatrix, rotation);
+}
+
+/**
+ * Handles movement buttons
+ */
+function buttonHandler(event) {
+    if (movementKeyList.includes(event.key)) {
+        event.preventDefault();
+        if (event.key === "ArrowUp") {
+            movementZ = 0.05;
+        } else if (event.key === "ArrowDown") { 
+            movementZ = -0.05;
+        } else if (event.key === "w") {
+            //pitch = deg2rad(1);
+            updatePitch();
+        } else if (event.key === "s") {
+            //pitch = -deg2rad(1);
+            updatePitch();
+        }
+    }
+    updateMovement();
+    updateRotationMatrix();
+    updateModelViewMatrix();
 }
 
 

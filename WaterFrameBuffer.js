@@ -2,6 +2,7 @@ export default
 class WaterFrameBuffer {
 
     constructor(gl) {
+        this.gl = gl;
 
         this.REFLECTION_HEIGHT = 180;
         this.REFLECTION_WIDTH = 320;
@@ -9,7 +10,6 @@ class WaterFrameBuffer {
         this.REFRACTION_HEIGHT = 720;
         this.REFRACTION_WIDTH = 1280;
         
-        this.gl = gl;
         this.initReflectionFrameBuffer();
     }
 
@@ -40,6 +40,7 @@ class WaterFrameBuffer {
 
     initReflectionFrameBuffer() {
         this.reflectionFrameBuffer = this.gl.createFramebuffer();
+        this.bindReflectionFrameBuffer();
         this.reflectionTexture = this.createTextureAttachment(this.REFLECTION_WIDTH, this.REFLECTION_HEIGHT);
         this.reflectionDepthBuffer = this.createDepthBufferAttachment(this.REFLECTION_WIDTH, this.REFLECTION_HEIGHT);
         this.unbindCurrentFrameBuffer();
@@ -47,6 +48,7 @@ class WaterFrameBuffer {
 
     initRefractionFrameBuffer() {
         this.refractionFrameBuffer = this.gl.createFramebuffer();
+        this.bindRefractionFrameBuffer();
         this.refractionTexture = this.createTextureAttachment(this.REFRACTION_WIDTH, this.REFRACTION_HEIGHT);
         this.refractionDepthTexture = this.createDepthTextureAttachment(this.REFRACTION_WIDTH, this.REFRACTION_HEIGHT);
         this.unbindCurrentFrameBuffer();
@@ -73,7 +75,7 @@ class WaterFrameBuffer {
             this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, texture, texture, 0);
+        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, texture, 0);
         return texture;
     }
 

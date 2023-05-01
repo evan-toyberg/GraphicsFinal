@@ -491,6 +491,7 @@ function render() {
     time = new Date().getTime();
     // gl.uniform1f(gl.program.uTime, time);
     waterFBO.bindReflectionFrameBuffer();
+    // console.log(waterFBO)
     // window.requestAnimationFrame(render);
 
 
@@ -507,7 +508,7 @@ function render() {
     gl.bindTexture(gl.TEXTURE_2D, null);
     
 
-    console.log(gl.program.aTexCoord)
+    // console.log(gl.program.aTexCoord)
     
 
     // Render again

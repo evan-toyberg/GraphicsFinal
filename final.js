@@ -1,6 +1,8 @@
 // A basic demo of using textures and loading images (solution)
 'use strict';
 
+import WaterFrameBuffer from "./WaterFrameBuffer.js";
+
 // Allow use of glMatrix values directly instead of needing the glMatrix prefix
 const vec3 = glMatrix.vec3;
 const vec4 = glMatrix.vec4;
@@ -27,11 +29,13 @@ let scale = [1, 1, 1];
 
 // Objects to be drawn
 let obj;
+let waterFBO;
 
 let gl_vertex = [];
 let gl_texture = [];
 let gl_index = [];
 
+let time = new Date().getTime();
 
 
 // Once the document is fully loaded run this init function.
@@ -58,13 +62,15 @@ window.addEventListener('load', function init() {
     initEvents();
 
     // Set initial values of uniforms
+    updateMovement();
+    // updateRotationMatrix();
     updateModelViewMatrix();
-    gl.uniform1i(gl.program.uTexture, 0);
-    gl.uniform1i(gl.program.uDudvMap, 0);
 
     // Render the static scene
     onWindowResize();
-    //render(); // wait till images are loaded
+
+    // initTextures();
+    // render();
 });
 
 
@@ -97,7 +103,7 @@ function initProgram() {
         out vec3 vLightVector;
         out vec3 vEyeVector;
 
-        // TODO: Texture information
+        // Texture information
         out vec2 vTexCoord;
         out vec2 vDudvCoord;
 
@@ -119,56 +125,78 @@ function initProgram() {
         `#version 300 es
         precision mediump float;
 
-        // Light and material properties
-        const vec3 lightColor = vec3(1, 1, 1);
-        const vec4 materialColor = vec4(0, 1, 0, 1);
-        const float materialAmbient = 0.2;
-        const float materialDiffuse = 0.5;
-        const float materialSpecular = 0.3;
-        const float materialShininess = 10.0;
+        in vec2 vTexCoord;
 
-        // Vectors (varying variables from vertex shader)
-        in vec3 vNormalVector;
-        in vec3 vLightVector;
-        in vec3 vEyeVector;
-
-        // TODO: Texture information
-        uniform sampler2D uTexture;
-        in vec2 vTexCoord;  // varying for texture coords
-        uniform sampler2D uDudvMap;
-        in vec2 vDudvCoord;
-
-        // Output color
         out vec4 fragColor;
 
+        uniform sampler2D reflectionTexture;
+        uniform sampler2D refractionTexture;
+
         void main() {
-            // Normalize vectors
-            vec3 N = normalize(vNormalVector);
-            vec3 L = normalize(vLightVector);
-            vec3 E = normalize(vEyeVector);
-
-            // Compute lighting
-            float diffuse = dot(-L, N);
-            float specular = 0.0;
-            if (diffuse < 0.0) {
-                diffuse = 0.0;
-            } else {
-                vec3 R = reflect(L, N);
-                specular = pow(max(dot(R, E), 0.0), materialShininess);
-            }
-            
-            vec2 distortion = texture(uDudvMap, vDudvCoord).rg * 0.1;
-
-            // TODO: Object color combined from texture and material
-			vec4 color = texture(uTexture, vTexCoord);
-            color.r *= distortion.x;
-
-            // Compute final color
-            fragColor.rgb = lightColor * (
-                (materialAmbient + materialDiffuse * diffuse) * color.rgb +
-                materialSpecular * specular);
-            fragColor.a = .8;
+            vec4 reflectionColor = texture(reflectionTexture, vTexCoord);
+            vec4 refractionColor = texture(refractionTexture, vTexCoord);
+            fragColor = mix(reflectionColor, refractionColor, 0.5);
         }`
+        // uniform float uTime;
+
+        // // Light and material properties
+        // const vec3 lightColor = vec3(1, 1, 1);
+        // const vec4 materialColor = vec4(0, 1, 0, 1);
+        // const float materialAmbient = 0.2;
+        // const float materialDiffuse = 0.5;
+        // const float materialSpecular = 0.3;
+        // const float materialShininess = 10.0;
+        // const float materialReflection = 0.5;
+
+        // // Vectors (varying variables from vertex shader)
+        // in vec3 vNormalVector;
+        // in vec3 vLightVector;
+        // in vec3 vEyeVector;
+
+        // // TODO: Texture information
+        // uniform sampler2D uTexture, uTexDudv;
+        // in vec2 vTexCoord;
+        // in vec2 vDudvCoord;
+
+        // uniform samplerCube uEnvMap;
+
+        // // Output color
+        // out vec4 fragColor;
+
+        // void main() {
+        //     // Normalize vectors
+        //     vec3 N = normalize(vNormalVector);
+        //     vec3 L = normalize(vLightVector);
+        //     vec3 E = normalize(vEyeVector);
+
+        //     // Compute lighting
+        //     float diffuse = dot(-L, N);
+        //     float specular = 0.0;
+        //     if (diffuse < 0.0) {
+        //         diffuse = 0.0;
+        //     } else {
+        //         vec3 R = reflect(L, N);
+        //         specular = pow(max(dot(R, E), 0.0), materialShininess);
+        //         // vec3 R = reflect(E, N); // Compute reflection vector
+        //         // vec4 envColor = texture(uEnvMap, R); // Sample environment texture with reflection vector
+        //         // specular = pow(max(dot(R, L), 0.0), materialShininess);
+        //         // fragColor.rgb = materialColor.rgb * (materialAmbient + materialDiffuse * diffuse + materialSpecular * specular) + materialReflection * envColor.rgb; // Combine reflection color with material color
+        //         // fragColor.a = materialColor.a;
+        //     }
+
+        //     vec2 distortion = texture(uTexDudv, vec2(vTexCoord.x, vTexCoord.y)).rg * 2.0 - 1.0;
+
+        //     // TODO: Object color combined from texture and material
+		// 	vec4 color = texture(uTexture, vTexCoord);
+            
+
+
+        //     // Compute final color
+        //     fragColor.rgb = lightColor * (
+        //         (materialAmbient + materialDiffuse * diffuse) * color.rgb +
+        //         materialSpecular * specular);
+        //     fragColor.a = .8;
+        // }`
     );
 
     // Link the shaders into a program and use them with the WebGL context
@@ -185,7 +213,10 @@ function initProgram() {
     program.uProjectionMatrix = gl.getUniformLocation(program, 'uProjectionMatrix');
     program.uRotationMatrix = gl.getUniformLocation(program, 'uRotationMatrix');
     program.uTexture = gl.getUniformLocation(program, 'uTexture');
-    program.uDudvMap = gl.getUniformLocation(program, 'uDudvMap');
+    program.uTexDudv = gl.getUniformLocation(program, 'uTexDudv');
+    program.reflectionTexture = gl.getUniformLocation(program, 'reflectionTexture');
+    program.refractionTexture = gl.getUniformLocation(program, 'refractionTexture');
+    program.uTime = gl.getUniformLocation(program, 'uTime');
 
     return program;
 }
@@ -197,7 +228,8 @@ function initProgram() {
 function initBuffers() {
     // The vertices, colors, and indices for a cube
     generateGrid(10)
-    
+
+    waterFBO = new WaterFrameBuffer(gl);
     obj = createObject(gl_vertex, gl_texture, gl_index, false);
 }
 
@@ -259,6 +291,9 @@ function loadTexture(img) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
 
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
@@ -282,7 +317,9 @@ function initTextures() {
     dudv.src = 'waterdudvmap.jpg';
     image.addEventListener('load', () => {
         obj.push(loadTexture(image));
-        obj.push(loadTexture(dudv));
+        // obj.push(loadTexture(dudv));
+        console.log(image)
+
         render();
     });
 }
@@ -451,130 +488,30 @@ function onWindowResize() {
  */
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    time = new Date().getTime();
+    // gl.uniform1f(gl.program.uTime, time);
+    waterFBO.bindReflectionFrameBuffer();
+    // window.requestAnimationFrame(render);
 
-    let [vao, count, mode, texture] = obj;
+
+    let [vao, count, mode, texture, dudv] = obj;
     gl.bindVertexArray(vao);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    // gl.activeTexture(gl.TEXTURE0);
+    // gl.bindTexture(gl.TEXTURE_2D, texture);
+    // gl.activeTexture(gl.TEXTURE1);
+    // gl.bindTexture(gl.TEXTURE_2D, dudv);
+    waterFBO.unbindCurrentFrameBuffer();
     gl.drawElements(mode, count, gl.UNSIGNED_SHORT, 0);
-
     // Cleanup
     gl.bindVertexArray(null);
     gl.bindTexture(gl.TEXTURE_2D, null);
+    
+
+    console.log(gl.program.aTexCoord)
+    
 
     // Render again
     window.requestAnimationFrame(render);
 }
 
 
-
-
-// function RenderReflection() {
-//     let [vao, count, mode, texture] = obj;
-//     gl.viewport(0,0, texture.size, texture.size);
-//     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-//     mat4.lookAt(mat4.create(), gl.eye, gl.center, gl.up);
-
-//     gl.pushMatrix(); // projection?
-//     gl.translate(0.0, 0.0, 0.0); // translate
-//     gl.scale(1.0, -1.0, 1.0); 
-//     plane[4] = [0.0, 1.0, 0.0, 0.0]; //water at y=0
-//     gl.Enable(gl.CLIP_PLANE0);
-//     gl.clipPlane(gl.CLIP_PLANE0, plane);
-//     RenderScene();
-//     gl.enable(gl.CLIP_PLANE0);
-//     glPopMatrix();
-
-//     //render reflection to texture
-//     gl.bindTexture(gl.TEXTURE_2D, texture);
-//     //glCopyTexSubImage2D copies the frame buffer
-//     //to the bound texture
-//     gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
-//     gl.bindTexture(gl.TEXTURE_2D, null);
-// }
-
-// function RenderRefractionAndDepth() {
-//     let [vao, count, mode, texture] = obj;
-//     gl.viewport(0,0, texSize, texSize);
-//     gl.clear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-//     gl.loadIdentity();
-//     gl.uLookAt(0.0, 1.5, -1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0)
-
-//     gl.pushMatrix();
-//     gl.translate(0.0, 0.0, 0.0);
-//     //normal pointing along negative y
-//     plane[4] = [0.0, -1.0, 0.0, 0.0];
-//     gl.enable(gl.CLIP_PLANE0);
-//     gl.clipPlane(gl.CLIP_PLANE0, plane);
-//     RenderScene();
-//     gl.enable(gl.CLIP_PLANE0, null);
-//     glPopMatrix();
-
-//     //render color buffer to texture
-//     gl.bindTexture(gl.TEXTURE_2D, refraction);
-//     gl.copyTexSubImage2D(gl.TEXTURE_2D,0,0,0,0,0,texture.size, texture.size);
-
-//     //render depth to texture
-//     gl.bindTexture(gl.TEXTURE_2D, depth);
-//     gl.copyTexImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT, 0,0, texture.size,texture.size, 0);
-// }
-
-// function renderWater() {
-//     // bind & enable shader programs
-//     gl.enable(gl.VERTEX_PROGRAM_ARB);
-//     gl.enable(gl.FRAGMENT_PROGRAM_ARB);
-//     gl.bindProgramARB(gl.VERTEX_PROGRAM_ARB, gl.vert_shader);
-//     gl.bindProgramARB(gl.FRAGMENT_PROGRAM_ARB, gl.frag_shader);
-
-//     // move texture across water surface
-//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 0, texmove, texmove, texmove, 1.0);
-//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 1, -texmove, -texmove, -texmove, 1.0);
-
-//     // set viewposition and lightposition
-//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 2, viewpos.x, viewpos.y, viewpos.z, 1.0);
-//     gl.programLocalParameter4fARB(gl.VERTEX_PROGRAM_ARB, 3, lightpos.x, lightpos.y, lightpos.z, 1.0);
-
-//     // set watercolor
-//     gl.programLocalParameter4fARB(gl.FRAGMENT_PROGRAM_ARB, 0, water.red, water.green, water.blue, 1.0);
-
-//     // bind all textures
-//     gl.activeTexture(gl.TEXTURE0);
-//     gl.enable(gl.TEXTURE_2D);
-//     gl.bindTexture(gl.TEXTURE_2D, reflection);
-
-//     gl.activeTexture(gl.TEXTURE1);
-//     gl.enable(gl.TEXTURE_2D);
-//     gl.bindTexture(gl.TEXTURE_2D, refraction);
-
-//     gl.activeTexture(gl.TEXTURE2);
-//     gl.enable(gl.TEXTURE_2D);
-//     gl.bindTexture(gl.TEXTURE_2D, normalmap);
-
-//     gl.activeTexture(gl.TEXTURE3);
-//     gl.enable(gl.TEXTURE_2D);
-//     gl.bindTexture(gl.TEXTURE_2D, dudvmap);
-
-//     gl.activeTexture(gl.TEXTURE4);
-//     gl.enable(gl.TEXTURE_2D);
-//     gl.bindTexture(gl.TEXTURE_2D, depth);
-
-//     // render the water surface
-//     gl.begin(gl.QUADS);
-//     gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 5.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-//     gl.vertex3f(-5.0, 0.0, 5.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE0, 0.0, 0.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-//     gl.vertex3f(-5.0, 0.0, -5.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE0, 5.0, 0.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE1, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE2, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE3, 0.0, 1.0);
-//     gl.multiTexCoord2fARB(gl.TEXTURE4, 0.0, 1.0);
-//     gl.vertex3f(5.0, 0.0, -5.0);
-// }

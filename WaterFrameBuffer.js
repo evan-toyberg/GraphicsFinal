@@ -87,7 +87,7 @@ class WaterFrameBuffer {
             this.gl.DEPTH_COMPONENT, this.gl.FLOAT, null);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, texture, texture, 0);
+        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, texture, 0);
     }
 
     createDepthBufferAttachment(width, height) {

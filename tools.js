@@ -2,55 +2,55 @@
 /* exported calc_normals, createVao, loadTexture, loadCubemapTexture */
 
 
-/**
- * Creates a VAO containing the attributes and indices provided.
- *
- * The attributes argument is an array of 3-element arrays with attribute
- * location, data for the attribute, and number of values per vertex. For
- * example:
- *     [
- *       [gl.program.aPosition, coords, 3],
- *       [gl.program.aNormal, normals, 3],
- *     ]
- * The data values can be regular arrays or typed arrays. 
- *
- * The indices argument is an array or typed array for the indices.
- */
-function createVao(gl, attributes, indices) {
-    coords = Float32Array.from(coords);
+// /**
+//  * Creates a VAO containing the attributes and indices provided.
+//  *
+//  * The attributes argument is an array of 3-element arrays with attribute
+//  * location, data for the attribute, and number of values per vertex. For
+//  * example:
+//  *     [
+//  *       [gl.program.aPosition, coords, 3],
+//  *       [gl.program.aNormal, normals, 3],
+//  *     ]
+//  * The data values can be regular arrays or typed arrays. 
+//  *
+//  * The indices argument is an array or typed array for the indices.
+//  */
+// function createVao(gl, attributes, indices) {
+//     coords = Float32Array.from(coords);
 
-    // Create and bind VAO
-    let vao = gl.createVertexArray(), buf;
-    gl.bindVertexArray(vao);
+//     // Create and bind VAO
+//     let vao = gl.createVertexArray(), buf;
+//     gl.bindVertexArray(vao);
 
-    // Load the data into the GPU and associate with shader
-    for (let [attribute, data, count] of attributes) {
-        if (data.constructor !== Float32Array) {
-            data = Float32Array.from(data);
-        }
-        buf = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-        gl.vertexAttribPointer(attribute, count, gl.FLOAT, false, 0, 0);
-        gl.enableVertexAttribArray(attribute);
-    }
+//     // Load the data into the GPU and associate with shader
+//     for (let [attribute, data, count] of attributes) {
+//         if (data.constructor !== Float32Array) {
+//             data = Float32Array.from(data);
+//         }
+//         buf = gl.createBuffer();
+//         gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+//         gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+//         gl.vertexAttribPointer(attribute, count, gl.FLOAT, false, 0, 0);
+//         gl.enableVertexAttribArray(attribute);
+//     }
 
-    // Load the index data into the GPU
-    buf = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf);
-    if (indices.constructor !== Uint16Array) {
-        indices = Uint16Array.from(indices);
-    }
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+//     // Load the index data into the GPU
+//     buf = gl.createBuffer();
+//     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf);
+//     if (indices.constructor !== Uint16Array) {
+//         indices = Uint16Array.from(indices);
+//     }
+//     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
 
-    // Cleanup
-    gl.bindVertexArray(null);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+//     // Cleanup
+//     gl.bindVertexArray(null);
+//     gl.bindBuffer(gl.ARRAY_BUFFER, null);
+//     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
-    // Return the VAO handle
-    return vao;
-}
+//     // Return the VAO handle
+//     return vao;
+// }
 
 
 /**

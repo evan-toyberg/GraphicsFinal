@@ -17,7 +17,7 @@ const modelViewMatrix = mat4.create();
 const rotationMatrix = mat4.create();
 
 // Key values that are used for movement
-let movementKeyList = ["ArrowUp", "ArrowDown", "w", "s"];
+let movementKeyList = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
 // Position values
 let movementZ = 0.0; // Varies based on whether or not the camera is moving forward or backwards
@@ -35,7 +35,8 @@ let gl_vertex = [];
 let gl_texture = [];
 let gl_index = [];
 
-let time = new Date().getTime();
+// NOTE: This was intended to be used for water movement
+// let time = new Date().getTime();
 
 
 // Once the document is fully loaded run this init function.
@@ -51,9 +52,6 @@ window.addEventListener('load', function init() {
     // Configure WebGL
     gl.viewport(0, 0, canvas.width, canvas.height); // this is the region of the canvas we want to draw on (all of it)
     gl.clearColor(0, 0, 0, 0); // setup the background color with red, green, blue, and alpha
-    // gl.enable(gl.DEPTH_TEST);
-    // gl.enable(gl.CULL_FACE);
-    // gl.cullFace(gl.BACK);
 
     // Initialize the WebGL program and data
     gl.program = initProgram();
@@ -63,14 +61,10 @@ window.addEventListener('load', function init() {
 
     // Set initial values of uniforms
     updateMovement();
-    // updateRotationMatrix();
     updateModelViewMatrix();
-
     // Render the static scene
     onWindowResize();
 
-    // initTextures();
-    // render();
 });
 
 
@@ -125,78 +119,65 @@ function initProgram() {
         `#version 300 es
         precision mediump float;
 
-        in vec2 vTexCoord;
+        // NOTE: Textures for reflection and refraction
+        // uniform sampler2D reflectionTexture;
+        // uniform sampler2D refractionTexture;
 
+        // Light and material properties
+        const vec3 lightColor = vec3(1, 1, 1);
+        const vec4 materialColor = vec4(0, 1, 0, 1);
+        const float materialAmbient = 0.2;
+        const float materialDiffuse = 0.5;
+        const float materialSpecular = 0.3;
+        const float materialShininess = 10.0;
+
+        // Vectors (varying variables from vertex shader)
+        in vec3 vNormalVector;
+        in vec3 vLightVector;
+        in vec3 vEyeVector;
+
+        // Texture information
+        uniform sampler2D uTexture, uTexDudv;
+        in vec2 vTexCoord;
+        in vec2 vDudvCoord;
+
+        // Output color
         out vec4 fragColor;
 
-        uniform sampler2D reflectionTexture;
-        uniform sampler2D refractionTexture;
-
         void main() {
-            vec4 reflectionColor = texture(reflectionTexture, vTexCoord);
-            vec4 refractionColor = texture(refractionTexture, vTexCoord);
-            fragColor = mix(reflectionColor, refractionColor, 0.5);
+            // Normalize vectors
+            vec3 N = normalize(vNormalVector);
+            vec3 L = normalize(vLightVector);
+            vec3 E = normalize(vEyeVector);
+
+            // Compute lighting
+            float diffuse = dot(-L, N);
+            float specular = 0.0;
+            if (diffuse < 0.0) {
+                diffuse = 0.0;
+            } else {
+                vec3 R = reflect(L, N);
+                specular = pow(max(dot(R, E), 0.0), materialShininess);
+            }
+
+            // NOTE: This was for simulating water movement
+            // vec2 distortion = texture(uTexDudv, vec2(vTexCoord.x, vTexCoord.y)).rg * 2.0 - 1.0;
+
+            // Object color combined from texture and material
+			vec4 color = texture(uTexture, vTexCoord);
+
+            // Compute final color
+            fragColor.rgb = lightColor * (
+                (materialAmbient + materialDiffuse * diffuse) * color.rgb +
+                materialSpecular * specular);
+            fragColor.r *= .1;
+
+            // NOTE: This was for water reflection and refraction
+            // vec4 reflectionColor = texture(reflectionTexture, vTexCoord);
+            // vec4 refractionColor = texture(refractionTexture, vTexCoord);
+            // fragColor = mix(reflectionColor, refractionColor, 1.);
+            fragColor.a = 1.;
         }`
-        // uniform float uTime;
-
-        // // Light and material properties
-        // const vec3 lightColor = vec3(1, 1, 1);
-        // const vec4 materialColor = vec4(0, 1, 0, 1);
-        // const float materialAmbient = 0.2;
-        // const float materialDiffuse = 0.5;
-        // const float materialSpecular = 0.3;
-        // const float materialShininess = 10.0;
-        // const float materialReflection = 0.5;
-
-        // // Vectors (varying variables from vertex shader)
-        // in vec3 vNormalVector;
-        // in vec3 vLightVector;
-        // in vec3 vEyeVector;
-
-        // // TODO: Texture information
-        // uniform sampler2D uTexture, uTexDudv;
-        // in vec2 vTexCoord;
-        // in vec2 vDudvCoord;
-
-        // uniform samplerCube uEnvMap;
-
-        // // Output color
-        // out vec4 fragColor;
-
-        // void main() {
-        //     // Normalize vectors
-        //     vec3 N = normalize(vNormalVector);
-        //     vec3 L = normalize(vLightVector);
-        //     vec3 E = normalize(vEyeVector);
-
-        //     // Compute lighting
-        //     float diffuse = dot(-L, N);
-        //     float specular = 0.0;
-        //     if (diffuse < 0.0) {
-        //         diffuse = 0.0;
-        //     } else {
-        //         vec3 R = reflect(L, N);
-        //         specular = pow(max(dot(R, E), 0.0), materialShininess);
-        //         // vec3 R = reflect(E, N); // Compute reflection vector
-        //         // vec4 envColor = texture(uEnvMap, R); // Sample environment texture with reflection vector
-        //         // specular = pow(max(dot(R, L), 0.0), materialShininess);
-        //         // fragColor.rgb = materialColor.rgb * (materialAmbient + materialDiffuse * diffuse + materialSpecular * specular) + materialReflection * envColor.rgb; // Combine reflection color with material color
-        //         // fragColor.a = materialColor.a;
-        //     }
-
-        //     vec2 distortion = texture(uTexDudv, vec2(vTexCoord.x, vTexCoord.y)).rg * 2.0 - 1.0;
-
-        //     // TODO: Object color combined from texture and material
-		// 	vec4 color = texture(uTexture, vTexCoord);
-            
-
-
-        //     // Compute final color
-        //     fragColor.rgb = lightColor * (
-        //         (materialAmbient + materialDiffuse * diffuse) * color.rgb +
-        //         materialSpecular * specular);
-        //     fragColor.a = .8;
-        // }`
     );
 
     // Link the shaders into a program and use them with the WebGL context
@@ -214,9 +195,9 @@ function initProgram() {
     program.uRotationMatrix = gl.getUniformLocation(program, 'uRotationMatrix');
     program.uTexture = gl.getUniformLocation(program, 'uTexture');
     program.uTexDudv = gl.getUniformLocation(program, 'uTexDudv');
-    program.reflectionTexture = gl.getUniformLocation(program, 'reflectionTexture');
-    program.refractionTexture = gl.getUniformLocation(program, 'refractionTexture');
-    program.uTime = gl.getUniformLocation(program, 'uTime');
+    // program.reflectionTexture = gl.getUniformLocation(program, 'reflectionTexture');
+    // program.refractionTexture = gl.getUniformLocation(program, 'refractionTexture');
+    // program.uTime = gl.getUniformLocation(program, 'uTime');
 
     return program;
 }
@@ -228,8 +209,9 @@ function initProgram() {
 function initBuffers() {
     // The vertices, colors, and indices for a cube
     generateGrid(10)
-
-    waterFBO = new WaterFrameBuffer(gl);
+    
+    // waterFBO = new WaterFrameBuffer(gl);
+    
     obj = createObject(gl_vertex, gl_texture, gl_index, false);
 }
 
@@ -286,8 +268,9 @@ function createObject(coords, tex_coords, indices, is_tri_strip) {
  * Load a texture onto the GPU.
  */
 function loadTexture(img) {
-    // TODO
+
     let texture = gl.createTexture();
+    texture.image = img;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -317,8 +300,8 @@ function initTextures() {
     dudv.src = 'waterdudvmap.jpg';
     image.addEventListener('load', () => {
         obj.push(loadTexture(image));
-        // obj.push(loadTexture(dudv));
-        console.log(image)
+
+        // obj.push(loadTexture(dudv)); // NOTE: Would've been used for water movement
 
         render();
     });
@@ -330,8 +313,6 @@ function initTextures() {
  */
 function initEvents() {
     window.addEventListener('resize', onWindowResize);
-    // gl.canvas.addEventListener('mousedown', onMouseDown);
-    gl.canvas.addEventListener('wheel', onMouseWheel);
     window.addEventListener('keydown', buttonHandler); 
 }
 
@@ -373,43 +354,6 @@ function generateGrid(gridSize) {
 }
 
 /**
- * Handle the click-and-drag to rotate the cube.
- */
-function onMouseDown(e) {
-    e.preventDefault();
-
-    let [startX, startY] = [e.offsetX, e.offsetY];
-    let start_rotation = rotation.slice();
-    function onMouseMove(e2) {
-        let x_rotation = (e2.offsetX - startX) / (this.width - 1) * 360;
-        let y_rotation = (e2.offsetY - startY) / (this.height - 1) * 360;
-        rotation[0] = start_rotation[0] + y_rotation;
-        rotation[1] = start_rotation[1] + x_rotation;
-        updateModelViewMatrix();
-    }
-    function onMouseUp() {
-        this.removeEventListener('mousemove', onMouseMove);
-        this.removeEventListener('mouseup', onMouseUp);
-    }
-    if (e.button === 0) {
-        this.addEventListener('mousemove', onMouseMove);
-        this.addEventListener('mouseup', onMouseUp);
-    }
-}
-
-
-/**
- * "Zoom" when using the mouse wheel.
- */
-function onMouseWheel(e) {
-    e.preventDefault();
-    let s = scale[0] * Math.pow(1.005, e.deltaY);
-    scale = [s, s, s];
-    updateModelViewMatrix();
-}
-
-
-/**
  * Update the projection matrix.
  */
 function updateProjectionMatrix() {
@@ -444,8 +388,8 @@ function updateMovement() {
  * Updates the pitch of the camera for each press of 'w' or 's'.
  */
 function updatePitch() {
-    rotation = deg2rad(90);
-    mat4.rotateX(rotationMatrix, rotationMatrix, rotation);
+    rotation = deg2rad(15);
+    mat4.rotateY(rotationMatrix, rotationMatrix, rotation);
 }
 
 /**
@@ -488,31 +432,76 @@ function onWindowResize() {
  */
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    time = new Date().getTime();
-    // gl.uniform1f(gl.program.uTime, time);
-    waterFBO.bindReflectionFrameBuffer();
-    // console.log(waterFBO)
-    // window.requestAnimationFrame(render);
-
+    // time = new Date().getTime();
+    // waterFBO.bindReflectionFrameBuffer();
 
     let [vao, count, mode, texture, dudv] = obj;
     gl.bindVertexArray(vao);
-    // gl.activeTexture(gl.TEXTURE0);
-    // gl.bindTexture(gl.TEXTURE_2D, texture);
-    // gl.activeTexture(gl.TEXTURE1);
-    // gl.bindTexture(gl.TEXTURE_2D, dudv);
-    waterFBO.unbindCurrentFrameBuffer();
+    
+    // waterFBO.unbindCurrentFrameBuffer();
     gl.drawElements(mode, count, gl.UNSIGNED_SHORT, 0);
+
     // Cleanup
     gl.bindVertexArray(null);
-    gl.bindTexture(gl.TEXTURE_2D, null);
     
-
-    // console.log(gl.program.aTexCoord)
-    
-
     // Render again
     window.requestAnimationFrame(render);
 }
+
+
+// NOTE: we made an attempt to use a cubemap texture for the skybox so we could reflect the skybox in the water.
+
+/**
+ * Load an image file into a texture on the GPU. The second argument is the texture number,
+ * defaulting to 0. Returns a Promise that resolves to the texture object.
+ */
+function loadImageAsCubemapTexture(img_url, index) {
+    // Default argument value
+    if (typeof index === 'undefined') { index = 0; }
+    return new Promise(resolve => {
+        const image = new Image();
+        image.src = img_url;
+        image.addEventListener('load', () => {
+            // TODO: first load cubemap texture with same image on all sides
+            // resolve(loadCubemapTexture(image, image, image, image, image, image, index));
+            // Then try loading front/back as checkerboard 2x2, left/right as checkerboard 2x2, and top/bottom as the image
+            // let cb2x2 = createCheckerboardImage(image.width, 2);
+            // let cb4x4 = createCheckerboardImage(image.width, 4);
+
+            resolve(loadCubemapTexture(image, image, image, image, image, image, index));
+        });
+    });
+}
+
+/**
+ * Load a cubemap texture onto the GPU as defined by 6 images.
+ * The last argument is the texture number, defaulting to 0.
+ */
+function loadCubemapTexture(xp, xn, yp, yn, zp, zn, index) {
+    // Default argument value
+    if (typeof index === 'undefined') { index = 0; }
+
+    let texture = gl.createTexture(); // create a texture resource on the GPU
+    gl.activeTexture(gl['TEXTURE'+index]); // set the current texture that all following commands will apply to
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
+
+    // TODO: Load the image data into the texture
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, xp);
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, xn);
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, yp);
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, yn);
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Z, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, zp);
+    gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, zn);
+
+    // Setup options for downsampling and upsampling the image data
+    gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    // Cleanup and return
+    gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+    return texture;
+}
+
 
 

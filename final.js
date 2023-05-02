@@ -393,13 +393,6 @@ function updateMovement() {
 }
 
 /**
- * Updates the pitch of the camera for each press of 'w' or 's'.
- */
-function rotateLeftRight(isLeftPress) {
-    mat4.rotate(rotationMatrix, rotationMatrix, deg2rad(isLeftPress ? -15 : 15), [0, 1, 0]);
-}
-
-/**
  * Handles movement buttons
  */
 function buttonHandler(event) {
@@ -409,11 +402,9 @@ function buttonHandler(event) {
             movementZ = 0.05;
         } else if (event.key === "ArrowDown") { 
             movementZ = -0.05;
-        } else if (event.key === "ArrowLeft") {
-            rotateLeftRight(true);
-        } else if (event.key === "ArrowRight") {
-            rotateLeftRight(false);
-        }
+        } else {
+            movementZ = 0;
+        } 
     }
     updateMovement();
     updateRotationMatrix();
@@ -501,6 +492,3 @@ function loadCubemapTexture(xp, xn, yp, yn, zp, zn, index) {
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
     return texture;
 }
-
-
-

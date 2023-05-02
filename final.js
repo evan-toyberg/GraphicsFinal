@@ -1,4 +1,14 @@
-// A basic demo of using textures and loading images (solution)
+// Final Project Water Simulation
+// Authors: Edgar Perez, Devin McCormack, Evan Toyberg
+
+// We were unsuccessful with our attempts to create water in WebGL. 
+// In our research, we did not find any tutorials using WebGL and Javascript 
+// to create water. There were some example projects, but these came with 
+// thousands of lines and were difficult to wrap our heads around. We spent 
+// a lot of time reviewing tutorials in other languages such as OpenGL or Rust, 
+// in an attempt to translate them back into WebGL and Javascript. We were unsuccessful 
+// in our attempts with any of these projects. These projects also came with many other 
+// foundations such as skyboxes or cube maps, which added to their complexity.
 'use strict';
 
 import WaterFrameBuffer from "./WaterFrameBuffer.js";
@@ -21,7 +31,7 @@ let movementKeyList = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
 
 // Position values
 let movementZ = 0.0; // Varies based on whether or not the camera is moving forward or backwards
-
+let rotationY = 0.0; // Varies based on whether or not the camera is rotating left or right
 // View values
 let position = [-5, -1, -12, 0];
 let rotation = [0, 0, 0];
@@ -321,8 +331,6 @@ function initEvents() {
  * Update the model view matrix.
  */
 function updateModelViewMatrix() {
-    // let mv = mat4.fromRotationTranslationScale(mat4.create(),
-    //     quat.fromEuler(glMatrix.quat.create(), ...rotation), position, scale);
     vec4.transformMat4(position, position, modelViewMatrix);
     gl.uniformMatrix4fv(gl.program.uModelViewMatrix, false, modelViewMatrix);
 }
@@ -387,9 +395,8 @@ function updateMovement() {
 /**
  * Updates the pitch of the camera for each press of 'w' or 's'.
  */
-function updatePitch() {
-    rotation = deg2rad(15);
-    mat4.rotateY(rotationMatrix, rotationMatrix, rotation);
+function rotateLeftRight(isLeftPress) {
+    mat4.rotate(rotationMatrix, rotationMatrix, deg2rad(isLeftPress ? -15 : 15), [0, 1, 0]);
 }
 
 /**
@@ -402,12 +409,10 @@ function buttonHandler(event) {
             movementZ = 0.05;
         } else if (event.key === "ArrowDown") { 
             movementZ = -0.05;
-        } else if (event.key === "w") {
-            //pitch = deg2rad(1);
-            updatePitch();
-        } else if (event.key === "s") {
-            //pitch = -deg2rad(1);
-            updatePitch();
+        } else if (event.key === "ArrowLeft") {
+            rotateLeftRight(true);
+        } else if (event.key === "ArrowRight") {
+            rotateLeftRight(false);
         }
     }
     updateMovement();
@@ -462,12 +467,6 @@ function loadImageAsCubemapTexture(img_url, index) {
         const image = new Image();
         image.src = img_url;
         image.addEventListener('load', () => {
-            // TODO: first load cubemap texture with same image on all sides
-            // resolve(loadCubemapTexture(image, image, image, image, image, image, index));
-            // Then try loading front/back as checkerboard 2x2, left/right as checkerboard 2x2, and top/bottom as the image
-            // let cb2x2 = createCheckerboardImage(image.width, 2);
-            // let cb4x4 = createCheckerboardImage(image.width, 4);
-
             resolve(loadCubemapTexture(image, image, image, image, image, image, index));
         });
     });
@@ -485,7 +484,7 @@ function loadCubemapTexture(xp, xn, yp, yn, zp, zn, index) {
     gl.activeTexture(gl['TEXTURE'+index]); // set the current texture that all following commands will apply to
     gl.bindTexture(gl.TEXTURE_CUBE_MAP, texture);
 
-    // TODO: Load the image data into the texture
+    // Load the image data into the texture
     gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, xp);
     gl.texImage2D(gl.TEXTURE_CUBE_MAP_NEGATIVE_X, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, xn);
     gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_Y, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, yp);

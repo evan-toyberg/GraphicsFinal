@@ -1,4 +1,6 @@
 export default
+// NOTE : This class was to be used to create frame buffers for the water reflection and refraction.
+//  This was not used in the final submission as we were not able to get reflection and refraction working.
 class WaterFrameBuffer {
 
     constructor(gl) {
